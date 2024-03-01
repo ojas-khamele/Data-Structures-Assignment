@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <malloc.h>
+#include <windows.h>
 
 typedef struct Time
 {
@@ -181,7 +182,6 @@ Bucket* InsertFlightsInBucket(Flight* lptr,Bucket* bHead)
     newBucket->endETA=lptr->ETA;
     newBucket->flights=lptr;
     
-
     Flight*prev;
 
     while(lptr!=NULL)
@@ -211,9 +211,176 @@ void showBucketList(Bucket*head)
     {
         printf("Bucket Id is %d\n",head->BucketID);
         printf("Bucket begin ETA = %d:%d:%d\n",head->beginningETA.Hour,head->beginningETA.Min,head->beginningETA.Sec);
-        printf("Bucket end ETA = %d:%d:%d\n\n",head->endETA.Hour,head->endETA.Min,head->endETA.Sec);
+        printf("Bucket end ETA = %d:%d:%d\n",head->endETA.Hour,head->endETA.Min,head->endETA.Sec);
+        printf("This Bucket contains following flightIDs :\n");
+        Flight*temp;
+        temp=head->flights;
+        
+        while(temp!=NULL)
+        {
+            printf("%d ",temp->flightID);
+            temp=temp->next;
+        }
+        printf("\n\n");
         head=head->next;
     }
+}
+
+void insertFlight(Bucket*head)
+{
+    int ID;
+    Time deptTime,ETA;
+    printf("Enter details for the flight to be added :\n");
+    
+    printf("Flight ID : ");
+    scanf("%d",&ID);
+
+    printf("Departure time : \nhr = ");
+    scanf("%d",&deptTime.Hour);
+    printf("min = ");
+    scanf("%d",&deptTime.Min);
+    printf("sec = ");
+    scanf("%d",&deptTime.Sec);
+
+    printf("Expected Arrival time : \nhr = ");
+    scanf("%d",&ETA.Hour);
+    printf("min = ");
+    scanf("%d",&ETA.Min);
+    printf("sec = ");
+    scanf("%d",&ETA.Sec);
+
+    Flight* newNode;
+    newNode = create_node(ID,deptTime,ETA);
+    
+    Bucket*bptr=head;
+    while(bptr!=NULL && bptr->BucketID!=ETA.Hour) bptr=bptr->next;
+
+    if(bptr==NULL)
+    {
+        bptr=createBucket(ID);
+        bptr->flights=newNode;
+        head=InsertInBucketList(head,bptr);
+    }
+    else
+    {
+        Flight*ptr,*prev;
+        ptr=bptr->flights;
+
+        while(ptr!=NULL && compareTime(ptr->ETA,newNode->ETA))
+        {
+            prev=ptr;
+            ptr=ptr->next;
+        }
+        if(ptr==NULL) prev->next=newNode;
+        else
+        {
+            newNode->next=ptr->next;
+            prev->next=newNode;
+        }
+    }
+}
+
+void removeBucketFromList(Bucket*head,Bucket*emptyNode)
+{
+    if(head==emptyNode) head=head->next;
+
+    else
+    {
+        while(head!=NULL && head->next!=emptyNode)head=head->next;
+
+        if(head==NULL) printf("Something went wrong\n");
+        else head->next=head->next->next;
+    }
+    free(emptyNode);
+}
+
+void cancelFlight(Bucket*bHead)
+{
+    Bucket*head=bHead;
+    int ID;
+
+    printf("Enter the ID of Flight that is to be cancelled : ");
+    scanf("%d",&ID);
+
+    int found=0;
+
+    while(!found && head!=NULL)
+    {
+        Flight*ptr,*prev;
+        ptr=head->flights;
+        prev=ptr;
+
+        while(ptr!=NULL && !found)
+        {
+            if(ptr->flightID==ID)
+            {
+                found=1;
+                printf("\nFlight that was expected to arrive at %d:%d:%d is CANCELLED\n",ptr->ETA.Hour,ptr->ETA.Min,ptr->ETA.Sec);
+                if(ptr==head->flights) head->flights=head->flights->next;
+                else prev->next = ptr->next;
+                free(ptr);
+                if(head->flights==NULL) removeBucketFromList(bHead,head);
+            }
+            prev=ptr;
+            ptr=ptr->next;
+        }
+        head=head->next;
+    } 
+    if(!found) printf("\nNo such Flight\n");
+}
+
+void checkStatus(Bucket*head)
+{
+    int ID;
+
+    printf("Enter the ID of Flight for checking status : ");
+    scanf("%d",&ID);
+
+    int found=0;
+
+    while(!found && head!=NULL)
+    {
+        Flight*ptr;
+        ptr=head->flights;
+
+        while(ptr!=NULL && !found)
+        {
+            if(ptr->flightID==ID)
+            {
+                found=1;
+                printf("\nFlight is expected to arrive at %d:%d:%d\n",ptr->ETA.Hour,ptr->ETA.Min,ptr->ETA.Sec);
+            }
+            ptr=ptr->next;
+        }
+        head=head->next;
+    } 
+    if(!found) printf("\nNo such Flight\n");
+}
+
+void showMenu(Bucket*ActiveBuckets)
+{   
+    int option;
+    do
+    {
+        printf("1 - Insert a Flight \n2 - Cancel Flight \n3 - Check Status \nPress any other key to exit\n\n");
+        printf("Select option : ");
+        scanf("%d",&option);
+
+        switch(option)
+        {
+            case 1 : insertFlight(ActiveBuckets); 
+            break;
+
+            case 2 : cancelFlight(ActiveBuckets);
+            break;
+
+            case 3 : checkStatus(ActiveBuckets);
+            break;
+        }
+        Sleep(2000);
+        showBucketList(ActiveBuckets);
+    }
+    while(option>0 && option<4);
 }
 
 int main()
@@ -242,8 +409,7 @@ int main()
 
     Bucket*ActiveBuckets=NULL;
     ActiveBuckets=InsertFlightsInBucket(plane_lptr,ActiveBuckets);
-
-    showBucketList(ActiveBuckets);
-    // show_PlaneList(plane_lptr);
+    
+    showMenu(ActiveBuckets);   
     return 0;
 }
