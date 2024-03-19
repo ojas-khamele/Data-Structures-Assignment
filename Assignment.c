@@ -45,7 +45,7 @@ Flight* create_node(int ID,Time departureTime, Time ETA)
     return nptr; 
 }
 
-int compareTime(Time t1,Time t2)    //ret_val=1 indicates t1 < t2 and 0 indicates t1 > t2
+int compareTime(Time t1,Time t2)    //ret_val=1 indicates t1 <= t2 and 0 indicates t1 > t2
 {
     int ret_val=1;
 
@@ -113,7 +113,7 @@ Flight* insert_in_PlaneList(Flight* head, Flight* newNode)  //inserting in ascen
     return head;
 }
 
-void show_PlaneList(Flight*ptr)
+void showPlaneList(Flight*ptr)
 {
     while(ptr!=NULL)
     {
@@ -178,23 +178,26 @@ Bucket* InsertFlightsInBucket(Flight* lptr,Bucket* bHead)
     Bucket* newBucket=NULL;
 
     newBucket=createBucket(lptr->ETA.Hour); 
-    newBucket->beginningETA=lptr->ETA;
-    newBucket->endETA=lptr->ETA;
+    newBucket->beginningETA.Hour=lptr->ETA.Hour;
+    newBucket->endETA.Hour=lptr->ETA.Hour;
+    newBucket->beginningETA.Min=0;
+    newBucket->endETA.Min=59;
     newBucket->flights=lptr;
-    
+
     Flight*prev;
 
     while(lptr!=NULL)
     {
         
-        if(newBucket->BucketID==lptr->ETA.Hour) newBucket->endETA=lptr->ETA;
-        else
+        if(newBucket->BucketID!=lptr->ETA.Hour)
         {
             prev->next=NULL;
             bHead=InsertInBucketList(bHead,newBucket);
             newBucket=createBucket(lptr->ETA.Hour);
-            newBucket->beginningETA=lptr->ETA;
-            newBucket->endETA=lptr->ETA;
+            newBucket->beginningETA.Hour=lptr->ETA.Hour;
+            newBucket->endETA.Hour=lptr->ETA.Hour;
+            newBucket->beginningETA.Min=0;
+            newBucket->endETA.Min=59;
             newBucket->flights=lptr;
         }
         
@@ -258,7 +261,10 @@ void insertFlight(Bucket*head)
     if(bptr==NULL)
     {
         bptr=createBucket(ID);
-        bptr->flights=newNode;
+        bptr->flights = newNode;
+        bptr->BucketID = newNode->ETA.Hour;
+        bptr->beginningETA = newNode->ETA;
+        bptr->endETA = newNode->ETA;
         head=InsertInBucketList(head,bptr);
     }
     else
@@ -383,12 +389,82 @@ void showMenu(Bucket*ActiveBuckets)
     while(option>0 && option<4);
 }
 
+void rearrangeBuckets(Bucket*firstBucket,int mins, int secs)
+{
+    Flight* allFlights;
+    Bucket* bptr;
+    
+    bptr=firstBucket;
+
+    if(bptr!=NULL)
+    {
+        // Emptying All Buckets And linking the list of flights in each bucket to form a sorted common list of all flights
+        allFlights = bptr->flights;
+        while(bptr!=NULL)
+        {
+            while(bptr->flights!=NULL && bptr->flights->next!=NULL) bptr->flights=bptr->flights->next;
+            
+
+            if(bptr->next!=NULL) bptr->flights->next = bptr->next->flights;
+            else bptr->flights->next=NULL;
+            
+            bptr=bptr->next;
+        }
+
+        showPlaneList(allFlights); //To check if all flights are linked or not...
+        printf("List of planes created \n");
+        
+        //Adding Flights to Buckets with modified timings
+        bptr=firstBucket;
+
+        int hr=allFlights->ETA.Hour;
+        if (allFlights->ETA.Min > mins) hr--;
+
+        Bucket*prevBucket;
+        Flight*prevFlight;
+
+        while(allFlights!=NULL)
+        {
+            printf("This goes infinite\n");
+            if(bptr==NULL)
+            {
+                bptr=createBucket(123);
+                prevBucket->next=bptr;
+            }
+            
+            bptr->beginningETA.Hour=hr;
+            bptr->endETA.Hour=hr;
+            bptr->beginningETA.Min=bptr->beginningETA.Min + mins;
+            bptr->endETA.Min=bptr->endETA.Min + mins;
+            bptr->flights = allFlights;
+
+            if(bptr->endETA.Min >= 60)
+            {
+                bptr->endETA.Hour=(bptr->endETA.Hour + 1) % 24;
+                bptr->endETA.Min=bptr->endETA.Min - 60;
+            }
+            
+            while(allFlights!=NULL && compareTime(bptr->beginningETA,allFlights->departureTime) && compareTime(allFlights->departureTime,bptr->endETA))
+            {    
+                prevFlight=allFlights;
+                allFlights=allFlights->next;
+            }
+
+            hr++;
+            prevFlight->next=NULL;
+            prevBucket=bptr;
+            bptr=bptr->next;
+        }     
+    }
+    showBucketList(firstBucket);
+}
+
 int main()
 {
     int tempFlightID;
 
     Time tempDepartureTime, tempETA;
-    FILE *fptr = fopen ("Data.csv", "r");
+    FILE *fptr = fopen ("FlightData.csv", "r");
 
     Flight *plane_lptr; //header to list of planes 
     plane_lptr=NULL;
@@ -410,6 +486,8 @@ int main()
     Bucket*ActiveBuckets=NULL;
     ActiveBuckets=InsertFlightsInBucket(plane_lptr,ActiveBuckets);
     
-    showMenu(ActiveBuckets);   
+    showMenu(ActiveBuckets);
+    //rearrangeBuckets(ActiveBuckets,30,0);
+       
     return 0;
 }
